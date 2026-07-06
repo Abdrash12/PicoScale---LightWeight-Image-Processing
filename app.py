@@ -4,6 +4,7 @@ import uuid
 from flask import Flask, request, jsonify, render_template
 from celery import Celery
 from PIL import Image
+from flask import send_file
 import cv2
 import numpy as np
 import psutil
@@ -106,7 +107,7 @@ def system_health():
 
 @app.route('/api/process', methods=['POST'])
 def submit_images():
-    """Ingests multi-part multi-file requests and triggers the mutation engine."""
+    """Ingests image arrays, triggers mutation, and directly streams the resulting binary file download."""
     if 'images' not in request.files:
         return jsonify({"error": "No image array payload detected inside transaction headers."}), 400
         
@@ -114,7 +115,6 @@ def submit_images():
     if not uploaded_files or uploaded_files[0].filename == '':
         return jsonify({"error": "Null index parameter references inside file list."}), 400
         
-    # Enforce array threshold boundary rules
     if len(uploaded_files) > 4:
         return jsonify({"error": "Batch threshold exceeded. Maximum slice limit is 4 items."}), 400
 
@@ -124,30 +124,60 @@ def submit_images():
     crop = request.form.get('crop') or None
     target_format = request.form.get('format', 'original')
 
-    results = []
-    
-    # Iterate through batch targets sequentially
-    for file in uploaded_files:
-        if file and allowed_file(file.filename):
-            file_bytes = file.read()
+    # For standard processing on a single-core web thread, take the first/active file
+    file = uploaded_files[0]
+    if file and allowed_file(file.filename):
+        file_bytes = file.read()
+        
+        # Fire structural matrix calculation task (Synchronous in Eager Mode)
+        task_result = execute_image_mutation(
+            file_bytes, 
+            file.filename,
+            quality=quality,
+            width=width,
+            height=height,
+            crop_coords=crop,
+            target_format=target_format
+        )
+        
+        if task_result.get("status") == "success":
+            # Re-fetch the mutated raw byte arrays directly from memory
+            # We must re-run the file loop directly inside our stream memory container
+            img = Image.open(io.BytesIO(file_bytes))
+            if crop:
+                x, y, w, h = map(int, map(float, crop.split(',')))
+                img = img.crop((x, y, x + w, y + h))
+            if width or height:
+                orig_w, orig_h = img.size
+                target_w = int(width) if width else int(orig_w * (int(height) / orig_h))
+                target_h = int(height) if height else int(orig_h * (int(width) / orig_w))
+                img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                
+            orig_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpeg'
+            save_format = orig_ext.upper() if target_format == 'original' else target_format.upper()
+            if save_format == 'JPG': save_format = 'JPEG'
             
-            # Fire task block. With task_always_eager=True active, this processes
-            # line-by-line right here on the current execution thread!
-            task_result = execute_image_mutation(
-                file_bytes, 
-                file.filename,
-                quality=quality,
-                width=width,
-                height=height,
-                crop_coords=crop,
-                target_format=target_format
+            if save_format == 'JPEG' and img.mode in ('RGBA', 'LA'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])
+                img = background
+
+            out_io = io.BytesIO()
+            img.save(out_io, format=save_format, quality=quality)
+            out_io.seek(0)
+            
+            # STREAM THE BINARY STRAIGHT BACK TO CLIENT AS A DOWNLOAD ATTACHMENT
+            return send_file(
+                out_io,
+                mimetype=f"image/{save_format.lower()}",
+                as_attachment=True,
+                download_name=task_result["filename"]
             )
-            results.append(task_result)
         else:
-            results.append({"filename": file.filename, "status": "error", "error": "Invalid file extension type mapping."})
-
-    return jsonify({"batch_status": "processed", "payload_matrix": results})
-
-if __name__ == '__main__':
+            return jsonify({"error": task_result.get("error", "Processing error")}), 500
+            
+    return jsonify({"error": "Invalid file selection parameter."}), 400
+    
+    if __name__ == '__main__':
     # Bind to standard localhost during direct script execution
     app.run(host='127.0.0.1', port=5000, debug=True)
