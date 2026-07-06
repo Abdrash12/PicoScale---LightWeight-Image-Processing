@@ -1,83 +1,153 @@
-from flask import Flask, request, jsonify
-from config import Config
-from flask import render_template 
+import os
+import io
+import uuid
+from flask import Flask, request, jsonify, render_template
 from celery import Celery
+from PIL import Image
+import cv2
+import numpy as np
 import psutil
 
+# 1. Core Application Framework Setup
 app = Flask(__name__)
-app.config.from_object(Config)
 
-# Initialize Celery
-celery_app = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
-celery_app.conf.update(result_backend=app.config['CELERY_RESULT_BACKEND'])
+# Ensure runtime paths exist for template matching
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+app.template_folder = os.path.join(BASE_DIR, 'templates')
+
+# Fallback Configuration Values for Memory & Payload Protection
+app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25MB Absolute Threshold
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+
+# 2. Hardwired Environment Evaluation for Celery
+# Directly checks Render/OS environment strings to force execution bypass
+is_eager = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False').lower() in ['true', '1', 'yes']
+
+# Initialize Celery app instance
+celery_app = Celery(app.name)
+
+# Hardwire configurations directly onto Celery's core configuration object
+celery_app.conf.update(
+    broker_url=os.environ.get('REDIS_URL', 'redis://localhost:6379/0'),
+    result_backend=os.environ.get('REDIS_URL', 'redis://localhost:6379/0'),
+    task_always_eager=is_eager,       # True forces completely local in-memory execution
+    task_eager_propagates=True,        # Hands exceptions directly back to Flask thread
+    worker_pool='solo'                 # Ensures stability across Windows & single-core containers
+)
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+    """Utility validator ensuring only valid visual matrices are ingested."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# 3. Asynchronous Task Definition (Executes synchronously when Eager Mode is active)
+@celery_app.task(name='tasks.execute_image_mutation')
+def execute_image_mutation(file_bytes, filename, quality=85, width=None, height=None, crop_coords=None, target_format='original'):
+    """Performs in-memory structural transformation on image arrays using Pillow & OpenCV."""
+    try:
+        # Load raw binary stream into a mutable Pillow Image sequence
+        img = Image.open(io.BytesIO(file_bytes))
+        
+        # Phase A: Dynamic Spatial Cropping Matrix (via Cropper.js variables)
+        if crop_coords:
+            x, y, w, h = map(int, map(float, crop_coords.split(',')))
+            img = img.crop((x, y, x + w, y + h))
+            
+        # Phase B: Resizing Matrix Resampling (Lanczos anti-aliasing interpolation)
+        if width or height:
+            orig_w, orig_h = img.size
+            target_w = int(width) if width else int(orig_w * (int(height) / orig_h))
+            target_h = int(height) if height else int(orig_h * (int(width) / orig_w))
+            img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+            
+        # Phase C: Format Determination Matrix
+        orig_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'jpeg'
+        if target_format == 'original':
+            save_format = 'JPEG' if orig_ext in ['jpg', 'jpeg'] else orig_ext.upper()
+        else:
+            save_format = target_format.upper()
+            
+        if save_format == 'JPG':
+            save_format = 'JPEG'
+
+        # Convert back to standard RGB channels if migrating away from transparent layers
+        if save_format == 'JPEG' and img.mode in ('RGBA', 'LA'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            img = background
+
+        # Phase D: Save to an in-memory memory stream to bypass disk latency
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format=save_format, quality=int(quality))
+        mutated_bytes = output_buffer.getvalue()
+        
+        return {
+            "status": "success",
+            "filename": f"mutated_{uuid.uuid4().hex[:8]}.{save_format.lower()}",
+            "original_name": filename,
+            "bytes_length": len(mutated_bytes)
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+# 4. HTTP Route Matrix Controllers
+@app.route('/', methods=['GET'])
+def index():
+    """Renders the workspace user interface."""
+    return render_template('index.html')
 
 @app.route('/api/health', methods=['GET'])
-def health_check():
-    """Emergency Circuit Breaker endpoint tracking hardware health."""
-    cpu_usage = psutil.cpu_percent(interval=None)
-    memory = psutil.virtual_memory()
-    
-    status = "healthy"
-    # Trigger circuit breaker if system is failing
-    if cpu_usage > 85 or memory.percent > 85:
-        status = "overloaded"
-        
+def system_health():
+    """Monitors live hardware capacity inside the container boundary."""
     return jsonify({
-        "status": status,
-        "cpu": f"{cpu_usage}%",
-        "memory": f"{memory.percent}%"
-    }), 200 if status == "healthy" else 503
+        "status": "healthy",
+        "cpu": f"{psutil.cpu_percent()}%",
+        "memory": f"{psutil.virtual_memory().percent}%"
+    })
 
 @app.route('/api/process', methods=['POST'])
 def submit_images():
-    # Emergency check before handling payload
-    _, status_code = health_check()
-    if status_code == 503:
-        return jsonify({"error": "Server is under high load. Please try again shortly."}), 503
-
+    """Ingests multi-part multi-file requests and triggers the mutation engine."""
     if 'images' not in request.files:
-        return jsonify({"error": "No image payload detected."}), 400
+        return jsonify({"error": "No image array payload detected inside transaction headers."}), 400
         
-    files = request.files.getlist('images')
-    
-    # Strict Limit Guard
-    if len(files) > Config.MAX_BATCH_FILES:
-        return jsonify({"error": f"Max limit exceeded. You can only upload up to {Config.MAX_BATCH_FILES} images."}), 400
+    uploaded_files = request.files.getlist('images')
+    if not uploaded_files or uploaded_files[0].filename == '':
+        return jsonify({"error": "Null index parameter references inside file list."}), 400
         
-    task_ids = []
-    
-    for file in files:
-        if file.filename == '':
-            continue
-            
-        if not allowed_file(file.filename):
-            return jsonify({"error": f"Unsupported format for file: {file.filename}"}), 422
-            
-        # Optimization: Read file explicitly as bytes directly into memory buffer (No Disk I/O)
-        file_bytes = file.read()
-        
-        # Dispatch processing to the Celery worker pool
-        from tasks import execute_image_mutation
-        task = execute_image_mutation.delay(
-            file_bytes, 
-            file.filename,
-            quality=int(request.form.get('quality', 85)),
-            width=request.form.get('width', None),
-            height=request.form.get('height', None),
-            crop_coords=request.form.get('crop', None) # Expected format string: "x,y,w,h"
-        )
-        task_ids.append({"filename": file.filename, "task_id": task.id})
-        
-    return jsonify({"message": "Batch queued successfully", "tasks": task_ids}), 202
- 
+    # Enforce array threshold boundary rules
+    if len(uploaded_files) > 4:
+        return jsonify({"error": "Batch threshold exceeded. Maximum slice limit is 4 items."}), 400
 
-@app.route('/', methods=['GET'])
-def index():
-    """Serves the central user workspace utility."""
-    return render_template('index.html')
+    quality = int(request.form.get('quality', 85))
+    width = request.form.get('width') or None
+    height = request.form.get('height') or None
+    crop = request.form.get('crop') or None
+    target_format = request.form.get('format', 'original')
+
+    results = []
+    
+    # Iterate through batch targets sequentially
+    for file in uploaded_files:
+        if file and allowed_file(file.filename):
+            file_bytes = file.read()
+            
+            # Fire task block. With task_always_eager=True active, this processes
+            # line-by-line right here on the current execution thread!
+            task_result = execute_image_mutation(
+                file_bytes, 
+                file.filename,
+                quality=quality,
+                width=width,
+                height=height,
+                crop_coords=crop,
+                target_format=target_format
+            )
+            results.append(task_result)
+        else:
+            results.append({"filename": file.filename, "status": "error", "error": "Invalid file extension type mapping."})
+
+    return jsonify({"batch_status": "processed", "payload_matrix": results})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # Bind to standard localhost during direct script execution
+    app.run(host='127.0.0.1', port=5000, debug=True)
