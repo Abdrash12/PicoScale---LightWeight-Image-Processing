@@ -452,6 +452,7 @@
             }
         }
 
+        // Form Submit & Direct Automated File Downloader Hook
         optimizeBtn.addEventListener('click', async () => {
             if (stagingBatch.length === 0) {
                 alert("Please drop or select an image file first.");
@@ -475,16 +476,35 @@
 
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
-                const result = await response.json();
                 
                 if (response.ok) {
-                    alert("Mutation complete! Batch handled successfully in-memory.");
-                    console.log(result);
+                    // Capture raw byte stream directly into a virtual file Blob object
+                    const blob = await response.blob();
+                    
+                    // Extract filename from response headers if available, or generate a clean timestamp name
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = `picoscale_optimized.${document.getElementById('targetFormat').value === 'original' ? 'jpg' : document.getElementById('targetFormat').value.toLowerCase()}`;
+                    if (contentDisposition && contentDisposition.includes('filename=')) {
+                        filename = contentDisposition.split('filename=')[1].replaceAll('"', '');
+                    }
+
+                    // Create an ephemeral system anchor element and click it automatically
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    
+                    // Cleanup ephemeral virtual memory allocation strings
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(downloadUrl);
                 } else {
-                    alert(`Error: ${result.error}`);
+                    const errorJson = await response.json();
+                    alert(`Error: ${errorJson.error}`);
                 }
             } catch (err) {
-                alert("Connection failed during mutation transaction.");
+                alert("Connection failed during file transaction streaming.");
             } finally {
                 if (printSheet) printSheet.style.animationDuration = '0.5s';
             }
