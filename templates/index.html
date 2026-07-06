@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PicoScale // Image Optimizer Core</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+    
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* --- 100% UNALTERED Uiverse.io 3D Printing Press CSS --- */
+        .press * {
+            border: 0;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        .press {
+            background: #86a6f9;
+            position: fixed;        /* Changed to fixed so it stays behind scrolling UI */
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -10;           /* Safely layered behind your frosted glass cards */
+            overflow: hidden;
+            font-size: 22px;        /* Scaled up cleanly via em-units without breaking 3D math */
+            color: #17181c;
+            font-family: serif;
+            line-height: 1.5;
+        }
+        .press-container {
+            display: block;
+        }
+        .press .sheet {
+            overflow: hidden;
+        }
+        .press .sheet,
+        .press .sheet:before,
+        .press .roll {
+            position: absolute;
+        }
+        .press .sheet,
+        .press .roll {
+            top: 50%;
+            left: 50%;
+        }
+        .press .sheet {
+            width: 4em;
+            height: 6em;
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg);
+        }
+        .press .sheet:before {
+            animation: print 0.5s ease-in-out infinite;
+            background:
+                linear-gradient(#0000 5.2em, currentColor 5.2em 5.3em, #0000 5.3em 5.5em) 0.4em 0 / 3.2em 6em,
+                linear-gradient(#0000 5.5em, currentColor 5.5em 5.7em, #0000 5.7em) 0.6em 0 / 2.8em 6em,
+                linear-gradient(90deg, #e3e4e8 0.4em, #0000 0.4em 1.9em, #e3e4e8 1.9em 2.1em, #0000 2.1em 3.6em, #e3e4e8 3.6em) 0 0 / 4em 6em,
+                repeating-linear-gradient(#e3e4e8 0 0.4em, #0000 0.4em 5em, #e3e4e8 5em 6em, #0000 6em) 0 0 / 4em 6em,
+                linear-gradient(#0000 3.4em, currentColor 3.4em) 100% 0 / 50% 6em,
+                repeating-linear-gradient(currentColor 0 0.2em, #e3e4e8 0.2em 0.4em) 0 0 / 4em 6em;
+            background-repeat: repeat-y;
+            color: #17181c;
+            content: "";
+            display: block;
+            top: -6em;
+            left: 0;
+            width: 100%;
+            height: calc(100% + 6em);
+        }
+        .press .sheet:nth-child(1):before,
+        .press .sheet:nth-child(5):before {
+            color: #c7cad1;
+        }
+        .press .sheet:nth-child(n + 7):nth-child(-n + 9) {
+            height: 0.4em;
+        }
+        .press .sheet:nth-child(1) {
+            height: 42em;
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-17.4em, 9.4em) rotateX(-90deg);
+        }
+        .press .sheet:nth-child(3) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2.5em, -2.5em);
+        }
+        .press .sheet:nth-child(5) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-0.5em, -0.7em) rotateX(-75deg);
+        }
+        .press .sheet:nth-child(7) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1.7em, -1.85em) rotateX(-15deg);
+        }
+        .press .sheet:nth-child(7):before {
+            background-position-y: 5.2em;
+        }
+        .press .sheet:nth-child(8) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1.7em, -1.5em) rotateX(15deg);
+        }
+        .press .sheet:nth-child(8):before {
+            background-position-y: 4.8em;
+        }
+        .press .sheet:nth-child(9) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1.6em, -1.05em) rotateX(45deg);
+        }
+        .press .sheet:nth-child(9):before {
+            background-position-y: 4.4em;
+        }
+        .press .sheet:nth-child(10):before,
+        .press .sheet:nth-child(11):before {
+            background-position-y: 4em;
+        }
+        .press .sheet:nth-child(10) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-0.5em, 1.95em) rotateX(75deg);
+        }
+        .press .sheet:nth-child(11) {
+            height: 29em;
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2.5em, 19.25em);
+        }
+        .press .roll {
+            background-color: #2e3138;
+            background-image: radial-gradient(1em 2em at 0.5em 50%, #17181c 49%, #17181c00 50%);
+            border-radius: 0.5em 0.5em 0.5em 0.5em / 1em 1em 1em 1em;
+            width: 8em;
+            height: 2em;
+        }
+        .press .roll:nth-child(2) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-3em, -4.5em) skewX(-22.5deg);
+        }
+        .press .roll:nth-child(4) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2em, -0.5em) skewX(-22.5deg);
+        }
+        .press .roll:nth-child(6) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1em, -1em) skewX(-22.5deg);
+        }
+        .press .roll:nth-child(12) {
+            transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2em, 4.45em) skewX(-22.5deg);
+        }
+        @keyframes print {
+            from {
+                transform: translateY(0);
+            }
+            to {
+                transform: translateY(6em);
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center p-4 md:p-8 overflow-y-auto selection:bg-[#17181c] selection:text-white">
+
+    <div class="press" id="pressEngine">
+        <div class="sheet"></div>
+        <div class="roll"></div>
+        <div class="sheet"></div>
+        <div class="roll"></div>
+        <div class="sheet"></div>
+        <div class="roll"></div>
+        <div class="sheet"></div>
+        <div class="sheet"></div>
+        <div class="sheet"></div>
+        <div class="sheet"></div>
+        <div class="sheet"></div>
+        <div class="roll"></div>
+    </div>
+
+    <main class="w-full max-w-5xl bg-white/35 backdrop-blur-xl border border-white/60 shadow-[0_20px_50px_rgba(23,24,28,0.15)] rounded-3xl p-6 md:p-10 my-8 z-10 transition-all duration-300 hover:shadow-[0_25px_60px_rgba(23,24,28,0.22)]">
+        
+        <header class="mb-8 border-b border-black/10 pb-6">
+            <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-[#17181c]">PICOSCALE</h1>
+            <p class="text-black/70 font-medium mt-1 text-sm md:text-base">Lightweight Image Processing</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-7 flex flex-col gap-4">
+                <div id="dropzone" class="border-2 border-dashed border-[#2e3138]/40 rounded-2xl p-8 text-center bg-white/20 hover:bg-white/40 hover:border-[#17181c] transition-all duration-300 cursor-pointer group flex flex-col items-center justify-center min-h-[320px]">
+                    <div class="w-12 h-12 mb-3 rounded-full bg-[#17181c]/5 flex items-center justify-center group-hover:scale-110 group-hover:bg-[#17181c]/10 transition-all duration-300">
+                        <svg class="w-6 h-6 text-[#17181c]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </div>
+                    <p class="text-base font-bold text-[#17181c] group-hover:translate-y-[-2px] transition-transform duration-300">Drop images here or click to browse</p>
+                    <p id="counterFeedback" class="code-font text-xs text-black/60 mt-1.5">Maximum 4 files allowed per batch</p>
+                    <input type="file" id="fileInput" class="hidden" multiple accept="image/*">
+                </div>
+                
+                <div id="cropperWrapper" class="hidden animate-fade-in bg-black/5 rounded-2xl overflow-hidden max-h-[420px] flex items-center justify-center border border-white/50 shadow-inner">
+                    <img id="imageViewport" class="max-w-full block">
+                </div>
+
+                <div id="metadataCard" class="hidden animate-fade-in bg-white/40 border border-white/60 rounded-2xl p-4 code-font text-xs text-[#17181c] shadow-sm flex flex-col gap-2.5 transition-all duration-300 hover:bg-white/50">
+                    <div class="flex justify-between items-center border-b border-black/10 pb-2 font-bold font-sans uppercase tracking-wider text-[11px] text-black/70">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Active Array Metadata
+                        </span>
+                        <span id="metaCount" class="bg-[#17181c] text-white px-2 py-0.5 rounded text-[10px] font-mono">1 / 1</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-0.5 text-[11px]">
+                        <div><span class="text-black/50">File:</span> <span id="metaName" class="font-bold truncate inline-block max-w-[140px] align-bottom">-</span></div>
+                        <div><span class="text-black/50">Format:</span> <span id="metaType" class="font-bold uppercase">-</span></div>
+                        <div><span class="text-black/50">Resolution:</span> <span id="metaDimensions" class="font-bold">-</span></div>
+                        <div><span class="text-black/50">Volume:</span> <span id="metaSize" class="font-bold">-</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 bg-white/30 border border-white/50 rounded-2xl p-6 flex flex-col justify-between gap-6 shadow-sm transition-all duration-300 hover:bg-white/40">
+                <div class="space-y-5">
+                    <div class="flex justify-between items-center border-b border-black/10 pb-2">
+                        <h3 class="text-xs font-bold text-[#17181c] uppercase tracking-wider">Configurations</h3>
+                        <span class="text-[10px] code-font text-black/50 uppercase">v2.4 Core</span>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-[11px] font-bold uppercase tracking-wider text-black/70 mb-1.5">Convert Format To</label>
+                        <select id="targetFormat" class="code-font w-full bg-white/70 border border-black/10 rounded-xl px-3.5 py-2.5 text-xs text-[#17181c] font-semibold focus:outline-none focus:border-[#17181c] focus:ring-2 focus:ring-[#17181c]/10 focus:bg-white transition-all cursor-pointer shadow-2xs">
+                            <option value="original">Original Format (No Conversion)</option>
+                            <option value="JPEG">JPEG (.jpg)</option>
+                            <option value="PNG">PNG (.png)</option>
+                            <option value="WEBP">WEBP (.webp)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold uppercase tracking-wider text-black/70 mb-1.5">Aspect Ratio Crop</label>
+                        <select id="aspectRatioSelect" class="code-font w-full bg-white/70 border border-black/10 rounded-xl px-3.5 py-2.5 text-xs text-[#17181c] font-semibold focus:outline-none focus:border-[#17181c] focus:ring-2 focus:ring-[#17181c]/10 focus:bg-white transition-all cursor-pointer shadow-2xs">
+                            <option value="NaN">Free / Original Aspect</option>
+                            <option value="1.7777777777777777">16:9 (Widescreen / Landscape)</option>
+                            <option value="1.3333333333333333">4:3 (Standard Display)</option>
+                            <option value="1">1:1 (Square / Feed)</option>
+                            <option value="0.5625">9:16 (Portrait / Story)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-[11px] font-bold uppercase tracking-wider text-black/70">Target Dimensions</label>
+                            <div class="inline-flex bg-black/5 p-0.5 rounded-lg border border-black/5 text-[10px] code-font font-bold">
+                                <button type="button" data-unit="px" class="unit-btn px-2 py-0.5 rounded-md bg-[#17181c] text-white shadow-2xs transition-all">PX</button>
+                                <button type="button" data-unit="cm" class="unit-btn px-2 py-0.5 rounded-md text-black/60 hover:text-black transition-all">CM</button>
+                                <button type="button" data-unit="in" class="unit-btn px-2 py-0.5 rounded-md text-black/60 hover:text-black transition-all">IN</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="relative">
+                                <input type="number" step="any" id="targetWidth" placeholder="Width" class="code-font w-full bg-white/70 border border-black/10 rounded-xl pl-3.5 pr-8 py-2.5 text-xs text-[#17181c] font-semibold focus:outline-none focus:border-[#17181c] focus:ring-2 focus:ring-[#17181c]/10 focus:bg-white transition-all shadow-2xs">
+                                <span class="unit-label absolute right-3 top-2.5 text-[10px] code-font text-black/40 font-bold pointer-events-none">px</span>
+                            </div>
+                            <div class="relative">
+                                <input type="number" step="any" id="targetHeight" placeholder="Height" class="code-font w-full bg-white/70 border border-black/10 rounded-xl pl-3.5 pr-8 py-2.5 text-xs text-[#17181c] font-semibold focus:outline-none focus:border-[#17181c] focus:ring-2 focus:ring-[#17181c]/10 focus:bg-white transition-all shadow-2xs">
+                                <span class="unit-label absolute right-3 top-2.5 text-[10px] code-font text-black/40 font-bold pointer-events-none">px</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-1">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-[11px] font-bold uppercase tracking-wider text-black/70">Compression Quality</label>
+                            <span id="qualityOutput" class="code-font font-bold text-xs bg-black/5 px-2 py-0.5 rounded text-[#17181c]">85%</span>
+                        </div>
+                        <input type="range" id="qualitySlider" min="5" max="100" value="85" class="w-full h-1.5 bg-black/10 rounded-lg appearance-none cursor-pointer accent-[#17181c] transition-all focus:outline-none">
+                    </div>
+                </div>
+
+                <button id="optimizeBtn" class="w-full bg-[#17181c] hover:bg-[#2e3138] active:scale-[0.99] text-white font-extrabold text-sm py-3.5 px-6 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 uppercase tracking-wider flex items-center justify-center gap-2 group">
+                    <span>Start</span>
+                    <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <div class="w-full min-h-[35vh] flex items-center justify-center pointer-events-none z-10">
+        <span class="text-[#17181c]/50 code-font text-[11px] uppercase tracking-widest animate-pulse bg-white/30 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/40 shadow-xs">
+            ↓ Fun Fact: Did you know you could scroll!! ↓
+        </span>
+    </div>
+
+    <footer class="w-full bg-white/15 backdrop-blur-2xl border-t border-white/30 text-[#17181c] py-8 px-6 md:px-12 z-10 mt-auto shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="flex flex-col items-center md:items-start text-center md:text-left">
+                <span class="font-extrabold tracking-wider uppercase text-sm flex items-center gap-2">
+                    <span>PicoScale</span>
+                    <span class="bg-[#17181c] text-white text-[10px] px-2 py-0.5 rounded-md font-mono font-normal">OPEN-SOURCE</span>
+                </span>
+                <span class="text-xs text-black/70 mt-1">Built for lightweight, high-throughput in-memory image mutation.</span>
+            </div>
+            <nav class="flex flex-wrap justify-center gap-6 text-xs font-bold uppercase tracking-wider text-black/80">
+                <a href="#" class="hover:text-black transition-colors underline-offset-4 hover:underline">Documentation</a>
+                <a href="#" class="hover:text-black transition-colors underline-offset-4 hover:underline">GitHub Repo</a>
+                <a href="#" class="hover:text-black transition-colors underline-offset-4 hover:underline">API Reference</a>
+                <a href="#" class="hover:text-black transition-colors underline-offset-4 hover:underline">MIT License</a>
+            </nav>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const qualitySlider = document.getElementById('qualitySlider');
+        const qualityOutput = document.getElementById('qualityOutput');
+        const cropperWrapper = document.getElementById('cropperWrapper');
+        const imageViewport = document.getElementById('imageViewport');
+        const optimizeBtn = document.getElementById('optimizeBtn');
+        const aspectRatioSelect = document.getElementById('aspectRatioSelect');
+        
+        const targetWidth = document.getElementById('targetWidth');
+        const targetHeight = document.getElementById('targetHeight');
+        const unitBtns = document.querySelectorAll('.unit-btn');
+        const unitLabels = document.querySelectorAll('.unit-label');
+        let currentUnit = 'px';
+        const DPI = 96;
+
+        const metadataCard = document.getElementById('metadataCard');
+        const metaName = document.getElementById('metaName');
+        const metaType = document.getElementById('metaType');
+        const metaDimensions = document.getElementById('metaDimensions');
+        const metaSize = document.getElementById('metaSize');
+        const metaCount = document.getElementById('metaCount');
+        
+        let cropperInstance = null;
+        let stagingBatch = [];
+
+        qualitySlider.addEventListener('input', (e) => qualityOutput.innerText = `${e.target.value}%`);
+
+        aspectRatioSelect.addEventListener('change', (e) => {
+            if (!cropperInstance) return;
+            const val = parseFloat(e.target.value);
+            cropperInstance.setAspectRatio(isNaN(val) ? NaN : val);
+        });
+
+        unitBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const newUnit = btn.getAttribute('data-unit');
+                if (newUnit === currentUnit) return;
+
+                const wVal = parseFloat(targetWidth.value);
+                const hVal = parseFloat(targetHeight.value);
+
+                if (!isNaN(wVal)) targetWidth.value = convertValue(wVal, currentUnit, newUnit);
+                if (!isNaN(hVal)) targetHeight.value = convertValue(hVal, currentUnit, newUnit);
+
+                unitBtns.forEach(b => {
+                    b.classList.remove('bg-[#17181c]', 'text-white', 'shadow-2xs');
+                    b.classList.add('text-black/60');
+                });
+                btn.classList.add('bg-[#17181c]', 'text-white', 'shadow-2xs');
+                btn.classList.remove('text-black/60');
+
+                unitLabels.forEach(label => label.innerText = newUnit);
+                currentUnit = newUnit;
+            });
+        });
+
+        function convertValue(val, from, to) {
+            let inPx = val;
+            if (from === 'in') inPx = val * DPI;
+            if (from === 'cm') inPx = val * (DPI / 2.54);
+
+            let res = inPx;
+            if (to === 'in') res = inPx / DPI;
+            if (to === 'cm') res = inPx / (DPI / 2.54);
+
+            return Math.round(res * 100) / 100;
+        }
+
+        function getPxValue(inputElem) {
+            const val = parseFloat(inputElem.value);
+            if (isNaN(val)) return '';
+            return Math.round(convertValue(val, currentUnit, 'px'));
+        }
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFileIngestion(e.target.files));
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('bg-white/50', 'border-[#17181c]');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('bg-white/50', 'border-[#17181c]');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('bg-white/50', 'border-[#17181c]');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileIngestion(e.dataTransfer.files);
+            }
+        });
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function handleFileIngestion(files) {
+            if (files.length > 4) {
+                alert("Batch threshold exceeded. Absolute maximum limit is 4 items.");
+                return;
+            }
+            stagingBatch = Array.from(files);
+            
+            if (stagingBatch.length > 0) {
+                const primaryFile = stagingBatch[0];
+                
+                metaName.innerText = primaryFile.name;
+                metaType.innerText = primaryFile.type.split('/')[1] || 'UNKNOWN';
+                metaSize.innerText = formatBytes(primaryFile.size);
+                metaCount.innerText = `1 / ${stagingBatch.length}`;
+                
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    imageViewport.src = event.target.result;
+                    
+                    const tempImg = new Image();
+                    tempImg.src = event.target.result;
+                    tempImg.onload = () => {
+                        metaDimensions.innerText = `${tempImg.naturalWidth} × ${tempImg.naturalHeight} px`;
+                    };
+
+                    dropzone.classList.add('hidden');
+                    cropperWrapper.classList.remove('hidden');
+                    metadataCard.classList.remove('hidden');
+                    
+                    if (cropperInstance) cropperInstance.destroy();
+                    const ratioVal = parseFloat(aspectRatioSelect.value);
+                    cropperInstance = new Cropper(imageViewport, {
+                        viewMode: 1,
+                        autoCropArea: 1,
+                        aspectRatio: isNaN(ratioVal) ? NaN : ratioVal
+                    });
+                };
+                reader.readAsDataURL(primaryFile);
+            }
+        }
+
+        optimizeBtn.addEventListener('click', async () => {
+            if (stagingBatch.length === 0) {
+                alert("Please drop or select an image file first.");
+                return;
+            }
+
+            const printSheet = document.querySelector('.press .sheet:before');
+            if (printSheet) printSheet.style.animationDuration = '0.15s';
+
+            const formData = new FormData();
+            stagingBatch.forEach(file => formData.append('images', file));
+            formData.append('quality', qualitySlider.value);
+            formData.append('width', getPxValue(targetWidth));
+            formData.append('height', getPxValue(targetHeight));
+            formData.append('format', document.getElementById('targetFormat').value);
+
+            if (cropperInstance) {
+                const data = cropperInstance.getData();
+                formData.append('crop', `${data.x},${data.y},${data.width},${data.height}`);
+            }
+
+            try {
+                const response = await fetch('/api/process', { method: 'POST', body: formData });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert("Mutation complete! Batch handled successfully in-memory.");
+                    console.log(result);
+                } else {
+                    alert(`Error: ${result.error}`);
+                }
+            } catch (err) {
+                alert("Connection failed during mutation transaction.");
+            } finally {
+                if (printSheet) printSheet.style.animationDuration = '0.5s';
+            }
+        });
+    </script>
+</body>
+</html>
