@@ -12,13 +12,13 @@
 
 ## Key Features
 
-*  Zero-Latency In-Memory Pipeline:** Bypasses disk read/write bottlenecks by executing all bitmap decompression, Lanczos resampling, and format transcoding directly inside system RAM using `Pillow` and `OpenCV`.
-*  Serverless-Ready Eager Mode:** Hardwired with `CELERY_TASK_ALWAYS_EAGER=True` support, allowing the entire asynchronous task queue to run synchronously inside a single web container—**no external Redis database or background worker dynos required** for free-tier cloud deployments.
+*  Zero-Latency In-Memory Pipeline: Bypasses disk read/write bottlenecks by executing all bitmap decompression, Lanczos resampling, and format transcoding directly inside system RAM using `Pillow` and `OpenCV`.
+*  Serverless-Ready Eager Mode: Hardwired with `CELERY_TASK_ALWAYS_EAGER=True` support, allowing the entire asynchronous task queue to run synchronously inside a single web container—**no external Redis database or background worker dynos required** for free-tier cloud deployments.
 *  Interactive Aspect Ratio Snapping:** Integrated with `Cropper.js` to provide instant bounding-box presets for **16:9 (Widescreen)**, **4:3 (Standard)**, **1:1 (Square)**, and **9:16 (Story/Portrait)** layouts.
 *  Intelligent Multi-Unit Resizing:** Switch dynamically between **Pixels (px)**, **Centimeters (cm)**, and **Inches (in)** at a standard 96 DPI screen density with client-side mathematical conversion.
-*  On-the-Fly Format Transcoding:** Easily convert uploaded image arrays between **JPEG**, **PNG**, and **WEBP** formats, with automatic RGB background layering for alpha-channel conversions.
-*  Batch Ingestion & Auto-Download:** Process up to 4 files simultaneously with automated browser blob streaming that instantly downloads mutated files to the user's device.
-*  Modern Frosted UI:** Built with Tailwind CSS, Space Grotesk typography, and an ascending CSS-only 3D mechanical printing press animation running continuously in the background.
+*  On-the-Fly Format Transcoding: Easily convert uploaded image arrays between **JPEG**, **PNG**, and **WEBP** formats, with automatic RGB background layering for alpha-channel conversions.
+*  Batch Ingestion & Auto-Download: Process up to 4 files simultaneously with automated browser blob streaming that instantly downloads mutated files to the user's device.
+*  Modern Frosted UI: Built with Tailwind CSS, Space Grotesk typography, and an ascending CSS-only 3D mechanical printing press animation running continuously in the background.
 
 ---
 
