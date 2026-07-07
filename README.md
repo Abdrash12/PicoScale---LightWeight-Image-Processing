@@ -1,4 +1,4 @@
-# PicoScale // Image Optimizer Core
+# PicoScale // All in one online image processing platform
 
 ![Version](https://img.shields.io/badge/version-v2.4_Core-17181c?style=for-the-badge)
 ![Python](https://img.shields.io/badge/python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)
